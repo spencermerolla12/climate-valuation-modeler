@@ -274,7 +274,6 @@ def main() -> None:
                 "ticker": "Ticker",
                 "parent_company": "EPA Parent Company",
             },
-            title="Carbon Intensity vs. EV/EBITDA with Sector Fixed Effects",
             template="plotly_white",
         )
         figure.update_traces(
@@ -288,7 +287,20 @@ def main() -> None:
             dragmode="pan",
             margin=dict(l=20, r=20, t=40, b=20),
         )
+        figure.update_layout(
+            legend=dict(
+                orientation="h",
+                yanchor="top",
+                y=-0.2,
+                xanchor="center",
+                x=0.5,
+            ),
+            margin=dict(b=100),
+        )
 
+        st.subheader(
+            "Carbon Intensity vs. EV/EBITDA with Sector Fixed Effects"
+        )
         st.plotly_chart(
             figure,
             use_container_width=True,
@@ -310,19 +322,13 @@ def main() -> None:
 
             st.markdown("### The Fully Expanded OLS Equation")
             st.latex(
-                r"""
-                \textcolor{#2E86C1}{\frac{EV}{EBITDA}_i}
-                = \textcolor{#8E44AD}{\beta_0}
-                + \textcolor{#27AE60}{
-                    \beta_1\left(\frac{Scope\ 1}{Revenue}\right)_i
-                }
-                + \textcolor{#C0392B}{
-                    \beta_2(\ln(Market\ Cap_i))
-                    + \beta_3\left(\frac{EBITDA}{Revenue}\right)_i
-                    + \alpha_{Sector}
-                }
-                + \epsilon_i
-                """
+                r"\textcolor{#2E86C1}{\frac{EV}{EBITDA}_i} = "
+                r"\textcolor{#8E44AD}{\beta_0} + "
+                r"\textcolor{#27AE60}{\beta_1\left(\frac{Scope 1}{Revenue}"
+                r"\right)_i} + "
+                r"\textcolor{#C0392B}{\beta_2(\ln(Market Cap_i))} \\ + "
+                r"\textcolor{#C0392B}{\beta_3\left(\frac{EBITDA}{Revenue}"
+                r"\right)_i + \alpha_{Sector}} + \epsilon_i"
             )
             st.markdown(
                 """
@@ -443,6 +449,7 @@ Financial markets are notoriously slow to price in unprecedented regulatory shif
             values="EBITDA",
             color="Pct_EBITDA_Lost",
             color_continuous_scale="Purples",
+            labels={"Pct_EBITDA_Lost": "% EBITDA Lost"},
             custom_data=[
                 "Company",
                 "Ticker",
@@ -460,6 +467,10 @@ Financial markets are notoriously slow to price in unprecedented regulatory shif
             margin=dict(t=20, l=20, r=20, b=20),
             clickmode="none",
         )
+        stress_figure.update_coloraxes(
+            colorbar=dict(orientation="h", y=-0.15)
+        )
+        stress_figure.update_layout(margin=dict(b=80))
         st.plotly_chart(stress_figure, use_container_width=True)
         st.caption(
             "Simulation Baseline: 2023 Reported EBITDA and Carbon Output."
