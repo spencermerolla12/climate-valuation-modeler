@@ -89,6 +89,9 @@ def run_carbon_tax_stress_test(
     simulation["Adjusted_EBITDA"] = (
         simulation["ebitda_usd"] - simulation["Carbon_Tax_Liability"]
     )
+    simulation["Pct_EBITDA_Lost"] = (
+        simulation["Carbon_Tax_Liability"] / simulation["ebitda_usd"] * 100
+    ).clip(upper=100)
     profitable = simulation["Adjusted_EBITDA"] > 0
     simulation["Adjusted_EV_to_EBITDA"] = np.where(
         profitable,
@@ -182,142 +185,327 @@ def main() -> None:
         )
         st.stop()
 
+    st.sidebar.header("⚙️ Model Controls")
     tax_rate = st.sidebar.slider(
         "Hypothetical Carbon Tax ($/Metric Ton)",
         min_value=0,
         max_value=150,
-        value=0,
+        value=65,
         step=5,
+        format="$%d / ton",
+        help=(
+            "Simulates a direct regulatory penalty applied to every metric "
+            "ton of Scope 1 emissions."
+        ),
+    )
+    st.sidebar.caption(
+        "Adjust this slider to simulate how future regulatory pricing "
+        "compresses current EBITDA margins."
+    )
+    st.sidebar.divider()
+    st.sidebar.subheader("📖 About this Engine")
+    st.sidebar.markdown(
+        "This tool aggregates US EPA facility-level Scope 1 emissions and "
+        "merges them with point-in-time financial fundamentals to quantify "
+        "climate transition risk."
+    )
+    st.sidebar.subheader("Data Sources")
+    st.sidebar.markdown(
+        "- EPA GHGRP (2023)\n"
+        "- Yahoo Finance"
     )
 
     model = run_ols(data)
     carbon_coefficient = model.params["Carbon_Intensity"]
     carbon_p_value = model.pvalues["Carbon_Intensity"]
 
-    st.header("Current Market Reality")
-    r_squared_col, p_value_col, coefficient_col = st.columns(3)
-    r_squared_col.metric("R-squared", f"{model.rsquared:.4f}")
-    p_value_col.metric("P-value", format_p_value(carbon_p_value))
-    coefficient_col.metric(
-        "Carbon Coefficient (Beta 1)",
-        f"{carbon_coefficient:,.2f}",
+    market_tab, stress_test_tab = st.tabs(
+        ["📈 Market Reality", "🚨 Transition Risk Stress Test"]
     )
 
-    figure = px.scatter(
-        data,
-        x="Carbon_Intensity",
-        y="ev_to_ebitda",
-        color="Sector",
-        hover_name="listed_company_name",
-        hover_data={
-            "ticker": True,
-            "parent_company": True,
-            "Sector": True,
-            "Carbon_Intensity": ":.6f",
-            "ev_to_ebitda": ":.2f",
-        },
-        labels={
-            "Carbon_Intensity": "Carbon Intensity (Scope 1 mtCO2e / Revenue USD)",
-            "ev_to_ebitda": "EV / EBITDA",
-            "ticker": "Ticker",
-            "parent_company": "EPA Parent Company",
-        },
-        title="Carbon Intensity vs. EV/EBITDA with Sector Fixed Effects",
-        template="plotly_white",
-    )
-    figure.update_traces(
-        marker={"size": 10, "opacity": 0.8},
-        selector={"mode": "markers"},
-    )
-    add_fixed_effect_lines(figure, data, model)
-    figure.update_layout(
-        hovermode="closest",
-        legend_title_text="Sector",
-        margin={"l": 20, "r": 20, "t": 70, "b": 20},
-    )
-
-    st.plotly_chart(figure, width="stretch")
-    st.caption(
-        f"Multivariate OLS sample: {len(data)} companies across "
-        f"{data['Sector'].nunique()} sector classifications after excluding "
-        f"non-positive EV or EBITDA and multiples above {MAX_EV_TO_EBITDA}x."
-    )
-
-    st.header("Transition Risk Stress Test")
-    simulation = run_carbon_tax_stress_test(data, tax_rate)
-    unprofitable_count = int((simulation["Adjusted_EBITDA"] <= 0).sum())
-
-    unprofitable_col, tax_rate_col = st.columns(2)
-    unprofitable_col.metric(
-        "Companies with Negative Earnings",
-        f"{unprofitable_count} of {len(simulation)}",
-    )
-    tax_rate_col.metric(
-        "Carbon Tax Scenario",
-        f"${tax_rate}/Metric Ton",
-    )
-
-    top_emitters = simulation.nlargest(
-        10,
-        "total_scope1_emissions_mtco2e",
-    ).copy()
-    chart_data = top_emitters[
-        ["listed_company_name", "ticker", "ebitda_usd", "Adjusted_EBITDA"]
-    ].melt(
-        id_vars=["listed_company_name", "ticker"],
-        value_vars=["ebitda_usd", "Adjusted_EBITDA"],
-        var_name="Scenario",
-        value_name="EBITDA_USD",
-    )
-    chart_data["Scenario"] = chart_data["Scenario"].map(
-        {
-            "ebitda_usd": "Baseline EBITDA",
-            "Adjusted_EBITDA": "Adjusted EBITDA",
-        }
-    )
-    chart_data["Company"] = (
-        chart_data["listed_company_name"] + " (" + chart_data["ticker"] + ")"
-    )
-    chart_data["EBITDA_Billions"] = chart_data["EBITDA_USD"] / 1_000_000_000
-
-    stress_figure = px.bar(
-        chart_data,
-        x="Company",
-        y="EBITDA_Billions",
-        color="Scenario",
-        barmode="group",
-        color_discrete_map={
-            "Baseline EBITDA": "#2F6BFF",
-            "Adjusted EBITDA": "#E45756",
-        },
-        labels={
-            "Company": "Company",
-            "EBITDA_Billions": "EBITDA (USD Billions)",
-        },
-        title=(
-            "Top 10 Emitters: Baseline vs. Carbon-Tax-Adjusted EBITDA "
-            f"at ${tax_rate}/Metric Ton"
-        ),
-        template="plotly_white",
-    )
-    stress_figure.add_hline(y=0, line_color="black", line_width=1)
-    stress_figure.update_layout(
-        legend_title_text="Scenario",
-        xaxis_tickangle=-35,
-        margin={"l": 20, "r": 20, "t": 70, "b": 100},
-    )
-    st.plotly_chart(stress_figure, width="stretch")
-
-    if unprofitable_count:
-        failed_companies = simulation.loc[
-            simulation["Stress_Status"] == "Negative Earnings",
-            ["listed_company_name", "ticker"],
-        ]
-        company_labels = ", ".join(
-            f"{row.listed_company_name} ({row.ticker})"
-            for row in failed_companies.itertuples(index=False)
+    with market_tab:
+        r_squared_col, p_value_col, coefficient_col = st.columns(3)
+        r_squared_col.metric(
+            "R-squared",
+            f"{model.rsquared:.3f}",
+            help=(
+                "The percentage of variance in valuation multiples explained "
+                "by our model (Size, Profitability, Sector, and Carbon). In "
+                "basic terms, this means our model explains exactly this "
+                "percentage of why these companies are valued the way they "
+                "are."
+            ),
         )
-        st.warning(f"Negative Earnings under this scenario: {company_labels}")
+        p_value_col.metric(
+            "P-value",
+            f"{carbon_p_value:.3f}",
+            help=(
+                "A value above 0.05 indicates that carbon intensity is NOT "
+                "statistically significant in driving current valuations."
+            ),
+        )
+        coefficient_col.metric(
+            "Carbon Coefficient (Beta 1)",
+            f"{carbon_coefficient:,.2f}",
+            help=(
+                "The directional impact of carbon on the multiple. A negative "
+                "number means higher emissions = lower valuation."
+            ),
+        )
+
+        figure = px.scatter(
+            data,
+            x="Carbon_Intensity",
+            y="ev_to_ebitda",
+            color="Sector",
+            hover_name="listed_company_name",
+            hover_data={
+                "ticker": True,
+                "parent_company": True,
+                "Sector": True,
+                "Carbon_Intensity": ":.6f",
+                "ev_to_ebitda": ":.2f",
+            },
+            labels={
+                "Carbon_Intensity": (
+                    "Carbon Intensity (Scope 1 mtCO2e / Revenue USD)"
+                ),
+                "ev_to_ebitda": "EV / EBITDA",
+                "ticker": "Ticker",
+                "parent_company": "EPA Parent Company",
+            },
+            title="Carbon Intensity vs. EV/EBITDA with Sector Fixed Effects",
+            template="plotly_white",
+        )
+        figure.update_traces(
+            marker={"size": 10, "opacity": 0.8},
+            selector={"mode": "markers"},
+        )
+        add_fixed_effect_lines(figure, data, model)
+        figure.update_layout(
+            hovermode="closest",
+            legend_title_text="Sector",
+            dragmode="pan",
+            margin=dict(l=20, r=20, t=40, b=20),
+        )
+
+        st.plotly_chart(
+            figure,
+            use_container_width=True,
+            config={"scrollZoom": True},
+        )
+        st.caption(
+            "Data: 2023 Fiscal Year Financials (Yahoo Finance) & 2023 Scope 1 "
+            "Facility Emissions (US EPA GHGRP)."
+        )
+
+        with st.expander("🧮 Methodology: The OLS Regression Model"):
+            st.markdown("### The Conceptual Model")
+            st.latex(
+                r"\text{Valuation} = \text{Anchor } (\beta_0) + "
+                r"\text{Carbon } (\beta_1) + \text{Size } (\beta_2) + "
+                r"\text{Profit } (\beta_3) + \text{Sector } (\alpha) + "
+                r"\text{Noise } (\epsilon)"
+            )
+
+            st.markdown("### The Fully Expanded OLS Equation")
+            st.latex(
+                r"""
+                \textcolor{#2E86C1}{\frac{EV}{EBITDA}_i}
+                = \textcolor{#8E44AD}{\beta_0}
+                + \textcolor{#27AE60}{
+                    \beta_1\left(\frac{Scope\ 1}{Revenue}\right)_i
+                }
+                + \textcolor{#C0392B}{
+                    \beta_2(\ln(Market\ Cap_i))
+                    + \beta_3\left(\frac{EBITDA}{Revenue}\right)_i
+                    + \alpha_{Sector}
+                }
+                + \epsilon_i
+                """
+            )
+            st.markdown(
+                """
+<div style="color: #2E86C1;">
+<strong>Dependent Variable (What we are predicting):</strong><br>
+<strong>EV/EBITDA:</strong> The Enterprise Multiple. A capital-structure-neutral valuation metric.
+</div>
+<br>
+<div style="color: #8E44AD;">
+<strong>The Anchor (Starting Line):</strong><br>
+<strong>Baseline Intercept (&beta;<sub>0</sub>):</strong> Think of this like the initial base fare on a taxi meter. It is the theoretical starting valuation before any financial, environmental, or sector-specific adjustments are applied.
+</div>
+<br>
+<div style="color: #27AE60;">
+<strong>Independent Variable of Interest (What we are testing):</strong><br>
+<strong>Carbon Intensity (&beta;<sub>1</sub>):</strong> Calculated as Scope 1 Emissions / Total Revenue. We use a ratio to fairly compare the emissions of massive corporations against smaller regional players.
+</div>
+<br>
+<div style="color: #C0392B;">
+<strong>Control Variables (Removing the noise):</strong><br>
+<strong>ln(Market Cap) (&beta;<sub>2</sub>):</strong> The natural log of market capitalization. This compresses the exponential size of mega-caps into a linear scale, preventing outliers from warping the baseline.<br>
+<strong>EBITDA Margin (&beta;<sub>3</sub>):</strong> Calculated as EBITDA / Total Revenue. Highly profitable companies inherently trade at premium multiples. We must control for this so we don't mistakenly blame a low valuation on carbon.<br>
+<strong>Sector Fixed Effects (&alpha;):</strong> Dummy variables that calculate a unique starting offset for each industry, ensuring we compare utilities strictly to utilities.<br>
+<strong>Error Term (&epsilon;):</strong> The statistical noise, or the remaining variance not explained by our model.
+</div>
+""",
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                "By isolating the control variables, this Ordinary Least "
+                "Squares (OLS) regression forces the model to measure the pure "
+                "impact of a company's carbon footprint on its market "
+                "valuation."
+            )
+
+        st.caption(
+            f"Multivariate OLS sample: {len(data)} companies across "
+            f"{data['Sector'].nunique()} sector classifications after excluding "
+            f"non-positive EV or EBITDA and multiples above "
+            f"{MAX_EV_TO_EBITDA}x."
+        )
+
+    with stress_test_tab:
+        st.subheader("Transition Risk Stress Test")
+        selected_sector = st.radio(
+            "Navigate by Sector:",
+            options=["All Sectors"] + list(data["Sector"].unique()),
+            horizontal=True,
+        )
+
+        simulation = run_carbon_tax_stress_test(data, tax_rate)
+        unprofitable_count = int((simulation["Adjusted_EBITDA"] <= 0).sum())
+
+        unprofitable_col, tax_rate_col = st.columns(2)
+        unprofitable_col.metric(
+            "Companies with Negative Earnings",
+            f"{unprofitable_count} of {len(simulation)}",
+        )
+        tax_rate_col.metric(
+            "Carbon Tax Scenario",
+            f"${tax_rate}/Metric Ton",
+        )
+
+        df_sim = simulation.rename(
+            columns={
+                "listed_company_name": "Company",
+                "ticker": "Ticker",
+                "ebitda_usd": "EBITDA",
+            }
+        )
+        df_sim["Treemap_Label"] = (
+            df_sim["Company"]
+            + "<br>"
+            + df_sim["Ticker"]
+            + "<br>("
+            + df_sim["Pct_EBITDA_Lost"].apply(lambda value: f"{value:.2f}%")
+            + " Lost)"
+        )
+        if selected_sector == "All Sectors":
+            filtered_df_sim = df_sim
+        else:
+            filtered_df_sim = df_sim[
+                df_sim["Sector"] == selected_sector
+            ].copy()
+
+        with st.expander("Why Stress Test for Carbon Taxes?"):
+            st.markdown(
+                """
+### The Mechanics of a Carbon Tax
+
+A carbon tax is a regulatory fee levied directly on greenhouse gas emissions. In this model, we apply the hypothetical tax rate directly to a company's Scope 1 emissions (the physical carbon emitted directly from their facilities and smokestacks, as reported to the EPA).
+
+### Why We Model This
+
+Financial markets are notoriously slow to price in unprecedented regulatory shifts. By deducting this theoretical tax liability directly from a company's Baseline EBITDA (raw operational profit), we can instantly visualize which companies are operating with dangerously thin margins relative to their carbon footprint.
+
+### Model Assumptions & Limitations
+
+**Zero Cost Pass-Through:** This model represents a worst-case scenario. It assumes the company must absorb 100% of the carbon tax internally. In reality, utility and energy companies would likely pass a portion of this tax burden onto consumers via higher prices.
+
+**Static Operations:** This stress test is a snapshot in time. It assumes the company does not immediately invest in green technology to lower their emissions profile in response to the tax.
+"""
+            )
+
+        if tax_rate == 0:
+            st.info(
+                "👈 **No Tax Applied:** Adjust the Carbon Tax slider in the "
+                "sidebar to simulate EBITDA compression."
+            )
+
+        stress_figure = px.treemap(
+            filtered_df_sim,
+            path=[
+                px.Constant("Heavy Industry Universe"),
+                "Sector",
+                "Treemap_Label",
+            ],
+            values="EBITDA",
+            color="Pct_EBITDA_Lost",
+            color_continuous_scale="Purples",
+            custom_data=[
+                "Company",
+                "Ticker",
+                "Sector",
+                "EBITDA",
+                "Adjusted_EBITDA",
+                "Pct_EBITDA_Lost",
+            ],
+        )
+        stress_figure.update_traces(
+            hovertemplate="<b>%{customdata[0]}</b> (%{customdata[1]})<br>Sector: %{customdata[2]}<br>Baseline EBITDA: $%{customdata[3]:,.0f}<br>Adjusted EBITDA: $%{customdata[4]:,.0f}<br>EBITDA Lost: %{customdata[5]:.2f}%<extra></extra>"
+        )
+        stress_figure.update_traces(texttemplate="%{label}")
+        stress_figure.update_layout(
+            margin=dict(t=20, l=20, r=20, b=20),
+            clickmode="none",
+        )
+        st.plotly_chart(stress_figure, use_container_width=True)
+        st.caption(
+            "Simulation Baseline: 2023 Reported EBITDA and Carbon Output."
+        )
+
+        st.subheader("📓 Full Universe Impact Ledger")
+        ledger = filtered_df_sim[
+            [
+                "Company",
+                "Ticker",
+                "Sector",
+                "EBITDA",
+                "Adjusted_EBITDA",
+                "Pct_EBITDA_Lost",
+            ]
+        ].sort_values("Pct_EBITDA_Lost", ascending=False)
+        ledger_display = ledger.rename(
+            columns={
+                "Adjusted_EBITDA": "Adjusted EBITDA",
+                "Pct_EBITDA_Lost": "% EBITDA Lost",
+            }
+        )
+        st.dataframe(
+            ledger_display.style.format(
+                {
+                    "EBITDA": "${:,.0f}",
+                    "Adjusted EBITDA": "${:,.0f}",
+                    "% EBITDA Lost": "{:.2f}%",
+                }
+            ),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        if unprofitable_count:
+            failed_companies = simulation.loc[
+                simulation["Stress_Status"] == "Negative Earnings",
+                ["listed_company_name", "ticker"],
+            ]
+            company_labels = ", ".join(
+                f"{row.listed_company_name} ({row.ticker})"
+                for row in failed_companies.itertuples(index=False)
+            )
+            st.warning(
+                f"Negative Earnings under this scenario: {company_labels}"
+            )
 
 
 if __name__ == "__main__":
