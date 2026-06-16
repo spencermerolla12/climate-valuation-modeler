@@ -191,6 +191,27 @@ def main() -> None:
         "- EPA GHGRP (2023)\n"
         "- Yahoo Finance"
     )
+    st.sidebar.divider()
+    st.sidebar.markdown("### ⚠️ Model Limitations")
+    st.sidebar.caption(
+        "**Zero Cost Pass-Through:** Assumes 100% of the tax liability is "
+        "absorbed internally. In reality, utilities often pass costs to "
+        "consumers."
+    )
+    st.sidebar.caption(
+        "**Static Operations:** This is a point-in-time snapshot. It does not "
+        "forecast future green CapEx or emissions reduction initiatives."
+    )
+    st.sidebar.caption(
+        "*For informational research only. Not investment advice.*"
+    )
+    st.sidebar.divider()
+    st.sidebar.markdown("### 👨‍💻 Connect")
+    st.sidebar.caption(
+        "[LinkedIn Profile](https://linkedin.com) | "
+        "[GitHub Repository](https://github.com/spencermerolla12/"
+        "climate-valuation-modeler)"
+    )
 
     model = run_ols(data)
     carbon_coefficient = model.params["Carbon_Intensity"]
@@ -367,26 +388,30 @@ def main() -> None:
                 if tax_rate == 0:
                     scenario_name = "🟩 Status Quo"
                     scenario_desc = (
-                        "Current US regulatory framework. No carbon pricing "
-                        "penalty."
+                        "Current US regulatory framework. Zero direct carbon "
+                        "penalty applied. Markets continue to prioritize raw "
+                        "profitability."
                     )
                 elif tax_rate <= 40:
                     scenario_name = "🟨 Conservative Pricing"
                     scenario_desc = (
-                        "Minimal policy intervention. Low regulatory "
-                        "pressure."
+                        "Early-stage policy intervention. Represents "
+                        "localized carbon pricing or initial phase-in of a "
+                        "federal tax. Expect moderate margin compression."
                     )
                 elif tax_rate <= 80:
                     scenario_name = "🟧 Baseline Shock"
                     scenario_desc = (
-                        "Aligns with EPA Social Cost of Carbon and IMF "
-                        "targets."
+                        "Aligns with EPA Social Cost of Carbon & IMF 2030 "
+                        "targets. Simulates a severe regulatory correction "
+                        "forcing immediate operational repricing."
                     )
                 else:
                     scenario_name = "🟥 Aggressive Transition"
                     scenario_desc = (
                         "Stringent climate policy matching top-tier European "
-                        "markets."
+                        "ETS markets. Simulates worst-case scenario EBITDA "
+                        "destruction for heavy emitters."
                     )
 
                 st.write("")
