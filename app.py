@@ -222,22 +222,27 @@ def main() -> None:
         col_summary, col_stats = st.columns([3, 1])
 
         with col_summary:
-            st.info(
-                "**The Bottom Line:** This model evaluates how equity markets "
-                "currently price carbon transition risk across heavy "
-                "industries. The data reveals a stark reality: **Wall Street "
-                "does not currently penalize companies for their carbon "
-                "footprint.** Valuations are driven almost entirely by size "
-                "and profitability. This dashboard quantifies that market "
-                "disconnect and stress-tests what happens when regulatory "
-                "carbon pricing is introduced."
-            )
+            with st.container(border=True):
+                st.markdown(
+                    "**The Bottom Line:** This model evaluates how equity "
+                    "markets currently price carbon transition risk across "
+                    "heavy industries. The data reveals a stark reality: "
+                    "**Wall Street does not currently penalize companies for "
+                    "their carbon footprint.** Valuations are driven almost "
+                    "entirely by size and profitability. This dashboard "
+                    "quantifies that market disconnect and stress-tests what "
+                    "happens when regulatory carbon pricing is introduced."
+                )
 
         with col_stats:
-            st.markdown("**(OLS Regression Output)**")
-            st.markdown(f"- **R-squared:** {model.rsquared:.3f}")
-            st.markdown(f"- **P-value:** {carbon_p_value:.3f}")
-            st.markdown(f"- **Carbon Coef:** {carbon_coefficient:,.2f}")
+            st.markdown(
+                f"""
+**(OLS Regression Output)**
+* **R-squared:** {model.rsquared:.3f}
+* **P-value:** {carbon_p_value:.3f}
+* **Carbon Coef:** {carbon_coefficient:,.2f}
+"""
+            )
 
         figure = px.scatter(
             data,
