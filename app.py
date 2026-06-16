@@ -158,15 +158,10 @@ def add_fixed_effect_lines(
 
 def main() -> None:
     st.set_page_config(
-        page_title="Climate Transition Risk & Valuation Modeler",
+        page_title="Climate Transition Risk & Valuation Model",
         layout="wide",
     )
-    st.title("Climate Transition Risk & Valuation Modeler")
-    st.caption(
-        "Testing whether carbon-intensive companies trade at different "
-        "enterprise-value multiples after controlling for sector, company "
-        "size, and profitability."
-    )
+    st.title("Climate Transition Risk & Valuation Model")
 
     try:
         data = load_and_clean_data(DATA_PATH)
@@ -224,34 +219,25 @@ def main() -> None:
     )
 
     with market_tab:
-        r_squared_col, p_value_col, coefficient_col = st.columns(3)
-        r_squared_col.metric(
-            "R-squared",
-            f"{model.rsquared:.3f}",
-            help=(
-                "The percentage of variance in valuation multiples explained "
-                "by our model (Size, Profitability, Sector, and Carbon). In "
-                "basic terms, this means our model explains exactly this "
-                "percentage of why these companies are valued the way they "
-                "are."
-            ),
-        )
-        p_value_col.metric(
-            "P-value",
-            f"{carbon_p_value:.3f}",
-            help=(
-                "A value above 0.05 indicates that carbon intensity is NOT "
-                "statistically significant in driving current valuations."
-            ),
-        )
-        coefficient_col.metric(
-            "Carbon Coefficient (Beta 1)",
-            f"{carbon_coefficient:,.2f}",
-            help=(
-                "The directional impact of carbon on the multiple. A negative "
-                "number means higher emissions = lower valuation."
-            ),
-        )
+        col_summary, col_stats = st.columns([3, 1])
+
+        with col_summary:
+            st.info(
+                "**The Bottom Line:** This model evaluates how equity markets "
+                "currently price carbon transition risk across heavy "
+                "industries. The data reveals a stark reality: **Wall Street "
+                "does not currently penalize companies for their carbon "
+                "footprint.** Valuations are driven almost entirely by size "
+                "and profitability. This dashboard quantifies that market "
+                "disconnect and stress-tests what happens when regulatory "
+                "carbon pricing is introduced."
+            )
+
+        with col_stats:
+            st.markdown("**(OLS Regression Output)**")
+            st.markdown(f"- **R-squared:** {model.rsquared:.3f}")
+            st.markdown(f"- **P-value:** {carbon_p_value:.3f}")
+            st.markdown(f"- **Carbon Coef:** {carbon_coefficient:,.2f}")
 
         figure = px.scatter(
             data,
