@@ -192,7 +192,7 @@ def main() -> None:
         "- Yahoo Finance"
     )
     st.sidebar.divider()
-    st.sidebar.markdown("### ⚠️ Model Limitations")
+    st.sidebar.markdown("### Model Limitations")
     st.sidebar.caption(
         "**Zero Cost Pass-Through:** Assumes 100% of the tax liability is "
         "absorbed internally. In reality, utilities often pass costs to "
