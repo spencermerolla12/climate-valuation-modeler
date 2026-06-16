@@ -347,7 +347,7 @@ def main() -> None:
     with stress_test_tab:
         with st.container(border=True):
             st.markdown("### ⚙️ Stress Test Configurations")
-            col_slider, col_status = st.columns([1.2, 1])
+            col_slider, col_status = st.columns([2, 1])
 
             with col_slider:
                 tax_rate = st.slider(
@@ -365,28 +365,33 @@ def main() -> None:
 
             with col_status:
                 if tax_rate == 0:
+                    scenario_name = "🟩 Status Quo"
                     scenario_desc = (
-                        "🟩 **Status Quo:** Current US regulatory framework. "
-                        "No carbon pricing penalty."
+                        "Current US regulatory framework. No carbon pricing "
+                        "penalty."
                     )
                 elif tax_rate <= 40:
+                    scenario_name = "🟨 Conservative Pricing"
                     scenario_desc = (
-                        "🟨 **Conservative Pricing:** Minimal policy "
-                        "intervention. Low regulatory pressure."
+                        "Minimal policy intervention. Low regulatory "
+                        "pressure."
                     )
                 elif tax_rate <= 80:
+                    scenario_name = "🟧 Baseline Shock"
                     scenario_desc = (
-                        "🟧 **Baseline Shock Scenario:** Aligns with EPA "
-                        "Social Cost of Carbon and IMF targets."
+                        "Aligns with EPA Social Cost of Carbon and IMF "
+                        "targets."
                     )
                 else:
+                    scenario_name = "🟥 Aggressive Transition"
                     scenario_desc = (
-                        "🟥 **Aggressive Transition:** Stringent climate "
-                        "policy matching top-tier European carbon markets."
+                        "Stringent climate policy matching top-tier European "
+                        "markets."
                     )
 
-                st.markdown("<br>", unsafe_allow_html=True)
-                st.info(scenario_desc)
+                st.write("")
+                st.markdown(f"**Scenario:** {scenario_name}")
+                st.caption(scenario_desc)
 
         st.subheader("Transition Risk Stress Test")
         selected_sector = st.radio(
