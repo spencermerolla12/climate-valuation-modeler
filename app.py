@@ -206,11 +206,11 @@ def main() -> None:
         "*For informational research only. Not investment advice.*"
     )
     st.sidebar.divider()
-    st.sidebar.markdown("### 👨‍💻 Connect")
+    st.sidebar.markdown("### 🔗 Connect")
     st.sidebar.caption(
-        "[LinkedIn Profile](https://linkedin.com) | "
-        "[GitHub Repository](https://github.com/spencermerolla12/"
-        "climate-valuation-modeler)"
+        "[LinkedIn Profile](https://www.linkedin.com/in/"
+        "spencer-merolla-301988296) | "
+        "[GitHub](https://github.com/spencermerolla12)"
     )
 
     model = run_ols(data)
